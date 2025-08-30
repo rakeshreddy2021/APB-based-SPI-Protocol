@@ -136,3 +136,114 @@ Baud Rate = PCLK / ((SPPR+1) × 2^(SPR+1))
   * Write: Data to be transmitted via MOSI
   * Read: Data received via MISO
 
+Perfect 👍 You don’t want just a README draft — you want a **clear explanation of the SPI Core itself** so you can really understand it (and maybe later summarize it in your GitHub).
+
+Based on your uploaded doc, here’s a breakdown:
+
+---
+
+# 🔎 Explanation of SPI Core
+
+## 1. **What is SPI Core?**
+
+The **SPI (Serial Peripheral Interface) Core** is a hardware module that connects a microcontroller (master) with one or more external devices (slaves).
+It follows the **APB (Advanced Peripheral Bus)** protocol on one side and **SPI protocol** on the other.
+
+* **APB Side** → Communicates with CPU (reads/writes registers).
+* **SPI Side** → Communicates serially with external peripherals.
+
+---
+
+## 2. **Main Components**
+
+The SPI Core is divided into **four functional blocks**:
+
+1. **APB Slave Interface**
+
+   * Connects SPI to APB bus (CPU side).
+   * Handles register read/write.
+   * Provides control signals (like enable, mode select, interrupts).
+
+2. **Baud Rate Generator**
+
+   * Generates the **SPI clock (SCLK)** from APB clock (PCLK).
+   * Allows programmable speed using prescalers (SPPR, SPR).
+   * Supports different **CPOL (polarity)** and **CPHA (phase)** for SPI modes.
+
+3. **Slave Select Generator**
+
+   * Controls the **SS (Slave Select)** signal.
+   * Pulls SS low when a transfer starts, and back high when done.
+   * Ensures proper timing for slave communication.
+
+4. **Shifter**
+
+   * Converts **parallel data ↔ serial data**.
+   * Handles **MOSI** (Master Out Slave In) and **MISO** (Master In Slave Out).
+   * Supports **MSB-first or LSB-first transmission**.
+   * Synchronizes with clock edges (depends on CPOL/CPHA).
+
+---
+
+## 3. **Registers in SPI Core**
+
+The SPI Core uses control/status/data registers accessible via APB:
+
+| Register               | Function                                                |
+| ---------------------- | ------------------------------------------------------- |
+| **Control Register 1** | Enables SPI, master/slave mode, CPOL, CPHA, interrupts. |
+| **Control Register 2** | Fault detection, bidirectional mode, low-power options. |
+| **Baud Rate Register** | Sets clock prescaler/divisor for SCLK.                  |
+| **Status Register**    | Flags (Transfer complete, Buffer empty, Mode fault).    |
+| **Data Register**      | Holds transmit (TX) and receive (RX) data.              |
+
+---
+
+## 4. **How Data Transfer Works**
+
+Here’s the **sequence of events** in SPI communication:
+
+1. **CPU writes data** into **SPI Data Register** via APB.
+2. **SS (Slave Select)** is driven low → selects the SPI slave.
+3. **Baud Rate Generator** starts producing the SCLK signal.
+4. **Shifter** sends data bit-by-bit on MOSI, while simultaneously reading from MISO.
+5. Once all bits are shifted:
+
+   * Data is stored back into **Data Register** for CPU to read.
+   * **SS goes high** → end of transfer.
+   * **Status flags (SPIF, SPTEF, etc.)** are updated.
+   * **Interrupt** may be triggered (if enabled).
+
+This ensures **full-duplex, synchronous data transfer**.
+
+---
+
+## 5. **SPI Modes**
+
+Controlled by **CPOL (Clock Polarity)** and **CPHA (Clock Phase):**
+
+| Mode  | CPOL | CPHA | Sampling Edge | Idle Clock |
+| ----- | ---- | ---- | ------------- | ---------- |
+| **0** | 0    | 0    | Rising edge   | Low        |
+| **1** | 0    | 1    | Falling edge  | Low        |
+| **2** | 1    | 0    | Falling edge  | High       |
+| **3** | 1    | 1    | Rising edge   | High       |
+
+This makes it compatible with a wide range of slave devices.
+
+---
+
+## 6. **Why is it Useful?**
+
+* **High speed** compared to I²C or UART.
+* **Full-duplex** (send and receive at the same time).
+* **Simple hardware wiring** (only 4 signals: MOSI, MISO, SCLK, SS).
+* **Flexible** → Multiple devices can be connected using multiple SS lines.
+
+---
+
+✅ So in short:
+The **SPI Core** is like a “bridge” — on one side it talks to the CPU using **APB registers**, and on the other side it talks to external devices using **SPI signals**. It automatically handles clock generation, chip select, shifting of data, and status reporting.
+
+---
+
