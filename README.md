@@ -242,8 +242,98 @@ This makes it compatible with a wide range of slave devices.
 
 ---
 
-✅ So in short:
+--> So in short:
 The **SPI Core** is like a “bridge” — on one side it talks to the CPU using **APB registers**, and on the other side it talks to external devices using **SPI signals**. It automatically handles clock generation, chip select, shifting of data, and status reporting.
 
 ---
 
+# Detailed Working of SPI Core Blocks
+
+## 1. **APB Slave Interface**
+
+* **Role:** Bridge between CPU (APB bus) and SPI core.
+* **Working:**
+
+  * CPU reads/writes data through **APB registers** (Control, Status, Baud, Data).
+  * Implements a **3-state APB FSM**:
+
+    * **IDLE** → Waits for transaction.
+    * **SETUP** → Captures address & control.
+    * **ENABLE** → Executes read/write.
+  * Generates **wr\_enb (write enable)** and **rd\_enb (read enable)** signals.
+  * Updates SPI configuration (CPOL, CPHA, baud, enable bits).
+  * Provides **interrupt signals** when flags (SPIF, SPTEF, MODF) are triggered.
+
+--> Think of it as the “control room” where the CPU tells SPI what to do.
+
+---
+
+## 2. **Baud Rate Generator**
+
+* **Role:** Generates **SCLK (SPI clock)** from system clock (PCLK).
+* **Working:**
+
+  * Takes **prescaler (SPPR)** and **divider (SPR)** values from Baud Rate Register.
+  * Computes divisor:
+
+    $$
+    Divisor = (SPPR + 1) \times 2^{(SPR + 1)}
+    $$
+  * Produces SCLK = **PCLK / Divisor**.
+  * Controls clock **polarity (CPOL)** and **phase (CPHA)**:
+
+    * Decides whether data is sampled on rising or falling edge.
+  * Provides **flags** for when MOSI/MISO should sample or shift data.
+
+--> Acts like a **speed controller** ensuring the SPI clock matches the required baud rate.
+
+---
+
+## 3. **Slave Select Generator**
+
+* **Role:** Controls **SS (Slave Select)** signal in master mode.
+* **Working:**
+
+  * When CPU writes new data → **send\_data signal goes high**.
+  * **SS goes low** → selects the slave.
+  * Keeps SS low for duration = `16 × BaudRateDivisor`.
+  * During this time, data is shifted out/in.
+  * Once done:
+
+    * **SS goes high** (deselects slave).
+    * **receive\_data flag** asserted (data ready in register).
+    * **TIP (Transfer in Progress)** goes low → signals completion.
+
+--> Like a **switch operator**: pulls the line low to talk to a device, then releases when finished.
+
+---
+
+## 4. **Shifter**
+
+* **Role:** Handles **serial-to-parallel and parallel-to-serial conversion**.
+* **Working:**
+
+  * Data from CPU (via APB Data Register) is loaded into **shift register**.
+  * On each **SCLK edge**:
+
+    * One bit is shifted out on **MOSI**.
+    * Simultaneously, one bit is read in from **MISO**.
+  * Supports **MSB-first or LSB-first** (based on LSBFE bit).
+  * At end of 8 bits:
+
+    * Received data stored in **temp register** → then moved into **SPI Data Register**.
+    * Transmitted data has already gone out on MOSI.
+  * Works in sync with **CPOL/CPHA** to ensure correct timing.
+
+--> Think of it as the **gearbox**: it shifts the data bits in/out in perfect sync with the clock.
+
+---
+
+--> In short:
+
+* **APB Slave Interface** = Control & register handling.
+* **Baud Rate Generator** = Creates SPI clock.
+* **Slave Select Generator** = Manages slave enable line.
+* **Shifter** = Actually moves data in/out bit by bit.
+
+---
