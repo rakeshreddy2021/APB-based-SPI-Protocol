@@ -26,22 +26,35 @@ Understood. I’ll keep it simple and direct without using terms like “let’s
   * **SS/CS**: Slave Select, active low.
 
 ---
+## How Connections Work in the Project
 
-## Connection in the Project
+### Control path (APB side)
 
-* **CPU → APB interface → SPI Core → External SPI Device**
+* The **CPU communicates with SPI through APB registers**.
+* Control and configuration values (clock mode, baud rate, enable, slave select) are written into SPI registers via APB.
+* Data to be transmitted is written into the **SPI transmit register** using **PWDATA**.
+* Received data is stored in the **SPI receive register** and read back using **PRDATA**.
+* Status signals (busy, done, error) are reported back through APB registers.
+* **PREADY** indicates transfer completion, while **PSLVERR** signals errors.
 
-### On the APB side
+### Data path (SPI side)
 
-* CPU writes to SPI control and data registers using **PADDR, PWRITE, PWDATA, PSEL, PENABLE**.
-* CPU reads back data or status using **PRDATA**.
-* `PREADY` signals when a transfer is complete.
-* `PSLVERR` signals an error if one occurs.
+* Once configured, the SPI core drives the **external SPI bus**.
+* Data written through APB is shifted out on **MOSI**, bit by bit, on each clock edge of **SCLK**.
+* The slave simultaneously shifts data back on **MISO**, which is captured by the SPI core and stored for the CPU.
+* **SS** ensures only the targeted slave device responds.
 
-### On the SPI side
+---
 
-* **MOSI** sends data from master to slave.
-* **MISO** receives data from slave to master.
-* **SCLK** provides timing for bit transfers.
-* **SS** activates the chosen slave device.
+## System-Level View
+
+1. The CPU acts as the **controller**.
+2. The APB interface is used only for **register access and control**.
+3. The SPI core converts those register values into **serial transactions** on MOSI/MISO/SCLK/SS.
+4. An **interrupt line** from SPI to CPU signals when data transfer is complete, or when errors occur.
+5. This design separates **control plane (APB)** from the **data plane (SPI signals)**, ensuring clarity and modularity.
+
+---
+
+
 
